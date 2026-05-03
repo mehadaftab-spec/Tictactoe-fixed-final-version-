@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>final game fix</title>
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: white;
+	background-color: #120903;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background:
+		linear-gradient(180deg, rgba(255, 202, 88, 0.07), rgba(0, 0, 0, 0) 34%),
+		repeating-linear-gradient(62deg, rgba(0, 0, 0, 0.14) 0 2px, transparent 2px 24px),
+		linear-gradient(180deg, #3a1d09 0%, #1b0e06 48%, #090503 100%);
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+}
+
+#status::before {
+	content: 'TIC  TAC  TOE';
+	position: absolute;
+	top: 36%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	color: #ffd66e;
+	font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+	font-size: clamp(34px, 8vw, 74px);
+	font-weight: 900;
+	letter-spacing: 0;
+	text-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+	white-space: nowrap;
+}
+
+#status::after {
+	content: 'Loading game...';
+	position: absolute;
+	top: calc(36% + clamp(42px, 9vw, 78px));
+	left: 50%;
+	transform: translateX(-50%);
+	color: #d4a85c;
+	font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+	font-size: clamp(13px, 3.2vw, 18px);
+	font-weight: 700;
+	letter-spacing: 0.8px;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-splash.show-image--false {
+	display: none;
+}
+
+#status-splash.fullsize--true {
+	height: 100%;
+	width: 100%;
+	object-fit: contain;
+}
+
+#status-splash.use-filter--false {
+	image-rendering: pixelated;
+}
+
+#status-progress, #status-notice {
+	display: none;
+}
+
+#status-progress {
+	bottom: max(12%, 84px);
+	width: min(54%, 420px);
+	height: 12px;
+	margin: 0 auto;
+	overflow: hidden;
+	border: 1px solid rgba(255, 214, 110, 0.65);
+	border-radius: 999px;
+	background: rgba(8, 4, 2, 0.78);
+	box-shadow:
+		0 0 18px rgba(249, 209, 107, 0.2),
+		0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+#status-progress::-webkit-progress-bar {
+	background: rgba(8, 4, 2, 0.78);
+	border-radius: 999px;
+}
+
+#status-progress::-webkit-progress-value {
+	background: linear-gradient(90deg, #e0503a, #f9d16b);
+	border-radius: 999px;
+}
+
+#status-progress::-moz-progress-bar {
+	background: linear-gradient(90deg, #e0503a, #f9d16b);
+	border-radius: 999px;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden;
+	padding: 1rem;
+	text-align: center;
+	z-index: 1;
+}
+
+/* HTML overlay UI for web audio controls and bonus video. */
+#overlay-ui {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	z-index: 20;
+	transition: opacity 0.5s cubic-bezier(0.4,0,0.2,1), visibility 0.5s;
+}
+#overlay-ui.hidden {
+	opacity: 0;
+	visibility: hidden;
+}
+#tap-hint {
+	position: fixed;
+	top: max(10px, 1.5vh);
+	left: calc(50% - min(34px, 5vw));
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 7px 18px 7px 14px;
+	background: rgba(15, 8, 2, 0.72);
+	border: 1.5px solid rgba(249,209,107,0.45);
+	border-radius: 999px;
+	font-family: system-ui, -apple-system, Arial, sans-serif;
+	font-size: clamp(11px, 2vw, 14px);
+	font-weight: 700;
+	letter-spacing: 1.8px;
+	text-transform: uppercase;
+	color: #f9d16b;
+	white-space: nowrap;
+	pointer-events: none;
+	z-index: 21;
+	animation: hintPulse 2.4s ease-in-out infinite;
+	transition: opacity 0.8s ease, transform 0.8s ease;
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+}
+#tap-hint::before {
+	content: '';
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #f9d16b;
+	flex-shrink: 0;
+	animation: dotBlink 2.4s ease-in-out infinite;
+	box-shadow: 0 0 6px 2px rgba(249,209,107,0.8);
+}
+#tap-hint.faded {
+	opacity: 0;
+	transform: translateX(-50%) translateY(-12px) scale(0.92);
+	pointer-events: none;
+}
+@keyframes hintPulse {
+	0%, 100% {
+		box-shadow:
+			0 0 8px rgba(249,209,107,0.2),
+			0 0 20px rgba(249,209,107,0.08),
+			inset 0 0 12px rgba(249,209,107,0.04);
+		border-color: rgba(249,209,107,0.35);
+	}
+	50% {
+		box-shadow:
+			0 0 16px rgba(249,209,107,0.55),
+			0 0 40px rgba(249,209,107,0.25),
+			0 0 70px rgba(249,209,107,0.1),
+			inset 0 0 20px rgba(249,209,107,0.08);
+		border-color: rgba(249,209,107,0.75);
+	}
+}
+@keyframes dotBlink {
+	0%, 100% { opacity: 0.5; transform: scale(0.85); }
+	50% { opacity: 1; transform: scale(1.15); box-shadow: 0 0 10px 3px rgba(249,209,107,1); }
+}
+#toggle-bar {
+	position: fixed;
+	top: max(10px, 1.5vh);
+	right: max(10px, 1.5vw);
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+	pointer-events: auto;
+	z-index: 22;
+	transition: opacity 0.5s ease, visibility 0.5s;
+}
+#toggle-bar.hidden {
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+}
+.toggle-row {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	cursor: pointer;
+	user-select: none;
+	-webkit-tap-highlight-color: transparent;
+}
+.toggle-label {
+	font-family: system-ui, -apple-system, Arial, sans-serif;
+	font-size: clamp(9px, 1.6vw, 12px);
+	font-weight: 700;
+	letter-spacing: 0.8px;
+	color: #d4a85c;
+	text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+	transition: color 0.3s;
+}
+.toggle-track {
+	width: 42px;
+	height: 22px;
+	border-radius: 11px;
+	border: 1.5px solid #7a4d1c;
+	background: rgba(20, 10, 4, 0.65);
+	position: relative;
+	transition: background 0.35s ease, border-color 0.35s, box-shadow 0.35s;
+	box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+}
+.toggle-track.on {
+	background: rgba(60, 140, 60, 0.28);
+	border-color: #5cb85c;
+	box-shadow: inset 0 1px 3px rgba(0,0,0,0.4), 0 0 8px rgba(76,175,80,0.25);
+}
+.toggle-track.off {
+	background: rgba(50, 20, 10, 0.55);
+	border-color: #5a2a1a;
+	box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+}
+.toggle-knob {
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: #f9d16b;
+	position: absolute;
+	top: 1.5px;
+	left: 1.5px;
+	transition: transform 0.35s cubic-bezier(0.4,0,0.2,1), background 0.35s;
+	box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+}
+.toggle-track.on .toggle-knob {
+	transform: translateX(20px);
+	background: #f9d16b;
+}
+.toggle-track.off .toggle-knob {
+	transform: translateX(0);
+	background: #8a6e3e;
+}
+.toggle-row:hover .toggle-label {
+	color: #f9d16b;
+}
+#bonus-video {
+	display: none;
+	position: fixed;
+	inset: 0;
+	width: 100vw;
+	height: 100vh;
+	height: 100dvh;
+	object-fit: contain;
+	object-position: center center;
+	z-index: 100;
+	background: #000;
+}
+#bonus-back {
+	display: none;
+	position: fixed;
+	bottom: max(16px, 2.5vh);
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 101;
+	padding: 9px 32px;
+	font-size: clamp(12px, 2.2vw, 15px);
+	font-weight: 700;
+	letter-spacing: 1px;
+	color: #ffd1b3;
+	background: rgba(45, 10, 8, 0.92);
+	border: 1.5px solid #e0503a;
+	border-radius: 8px;
+	cursor: pointer;
+	font-family: system-ui, -apple-system, Arial, sans-serif;
+	box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+	transition: transform 0.15s, background 0.2s, box-shadow 0.2s;
+	-webkit-tap-highlight-color: transparent;
+}
+#bonus-back:hover, #bonus-back:active {
+	background: rgba(70, 18, 12, 0.95);
+	transform: translateX(-50%) scale(1.04);
+	box-shadow: 0 6px 20px rgba(224,80,58,0.25);
+}
+
+@media (max-width: 560px) {
+	#tap-hint {
+		left: 50%;
+		right: auto;
+		transform: translateX(-50%);
+		justify-content: center;
+		gap: 5px;
+		padding: 7px 9px;
+		font-size: clamp(9px, 2.45vw, 11px);
+		letter-spacing: 1px;
+	}
+
+	#tap-hint.faded {
+		transform: translateX(-50%) translateY(-12px) scale(0.92);
+	}
+
+	#toggle-bar {
+		right: max(8px, 2vw);
+		gap: 6px;
+	}
+
+	.toggle-label {
+		font-size: 10px;
+	}
+}
+		</style>
+		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
+<link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+
+	</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<img id="status-splash" class="show-image--false fullsize--true use-filter--true" src="index.png" alt="">
+			<progress id="status-progress"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		<div id="overlay-ui" class="hidden">
+			<div id="tap-hint">&#x26A1; Tap anywhere to enable sound &#x26A1;</div>
+		</div>
+
+		<div id="toggle-bar" class="hidden">
+			<div class="toggle-row" onclick="toggleMusic(event)">
+				<span class="toggle-label">MUSIC</span>
+				<div class="toggle-track on" id="track-music"><div class="toggle-knob"></div></div>
+			</div>
+			<div class="toggle-row" onclick="toggleSfx(event)">
+				<span class="toggle-label">SFX</span>
+				<div class="toggle-track on" id="track-sfx"><div class="toggle-knob"></div></div>
+			</div>
+		</div>
+
+		<video id="bonus-video" src="bonus-video.mp4" preload="auto" loop playsinline webkit-playsinline></video>
+		<button id="bonus-back" onclick="stopBonusVideo()">BACK</button>
+
+		<script src="index.js"></script>
+		<script>
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":2297024,"index.wasm":37695054},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_THREADS_ENABLED = false;
+const engine = new Engine(GODOT_CONFIG);
+
+let musicEnabled = true;
+let sfxEnabled = true;
+let audioUnlocked = false;
+let currentScreen = 'menu';
+let gameLoaded = false;
+const BONUS_VIDEO_SRC = 'bonus-video.mp4';
+
+window.setGodotScreen = function(screen) {
+	currentScreen = screen;
+	const overlay = document.getElementById('overlay-ui');
+	const toggleBar = document.getElementById('toggle-bar');
+
+	if (gameLoaded && screen === 'menu') {
+		overlay.classList.remove('hidden');
+		toggleBar.classList.remove('hidden');
+	} else {
+		overlay.classList.add('hidden');
+		toggleBar.classList.add('hidden');
+	}
+};
+
+function unlockAudioOnce() {
+	if (audioUnlocked) return;
+	audioUnlocked = true;
+	if (typeof window.unlockGodotAudio === 'function') {
+		window.unlockGodotAudio();
+	}
+	const hint = document.getElementById('tap-hint');
+	if (hint) {
+		hint.classList.add('faded');
+		setTimeout(() => hint.remove(), 800);
+	}
+}
+document.addEventListener('click', unlockAudioOnce, { once: true });
+document.addEventListener('touchstart', unlockAudioOnce, { once: true, passive: true });
+
+window.toggleMusic = function(e) {
+	if (e) e.stopPropagation();
+	musicEnabled = !musicEnabled;
+	updateToggleUI('music', musicEnabled);
+	if (typeof window.toggleGodotMusic === 'function') {
+		window.toggleGodotMusic();
+	}
+};
+
+window.toggleSfx = function(e) {
+	if (e) e.stopPropagation();
+	sfxEnabled = !sfxEnabled;
+	updateToggleUI('sfx', sfxEnabled);
+	if (typeof window.toggleGodotSFX === 'function') {
+		window.toggleGodotSFX();
+	}
+};
+
+function updateToggleUI(id, isOn) {
+	const track = document.getElementById('track-' + id);
+	if (!track) return;
+
+	if (isOn) {
+		track.classList.add('on');
+		track.classList.remove('off');
+	} else {
+		track.classList.add('off');
+		track.classList.remove('on');
+	}
+}
+
+function sendGodotMenuKey() {
+	const canvas = document.getElementById('canvas');
+	if (canvas) {
+		canvas.focus();
+	}
+
+	for (const type of ['keydown', 'keyup']) {
+		const event = new KeyboardEvent(type, {
+			key: 'm',
+			code: 'KeyM',
+			keyCode: 77,
+			which: 77,
+			bubbles: true,
+			cancelable: true,
+		});
+		(canvas || document).dispatchEvent(event);
+		document.dispatchEvent(event);
+		window.dispatchEvent(event);
+	}
+
+	currentScreen = 'menu';
+};
+
+window.playBonusVideo = function(src) {
+	const v = document.getElementById('bonus-video');
+	const btn = document.getElementById('bonus-back');
+	const nextSrc = (src && String(src).trim()) || BONUS_VIDEO_SRC;
+
+	if (v.getAttribute('src') !== nextSrc) {
+		v.setAttribute('src', nextSrc);
+		v.load();
+	}
+
+	v.currentTime = 0;
+	v.style.display = 'block';
+	btn.style.display = 'block';
+	v.muted = true;
+	v.play().then(() => {
+		v.muted = false;
+	}).catch(() => {
+		v.muted = true;
+		v.play().catch(console.error);
+	});
+};
+
+window.stopBonusVideo = function() {
+	const v = document.getElementById('bonus-video');
+	v.pause();
+	v.currentTime = 0;
+	v.style.display = 'none';
+	document.getElementById('bonus-back').style.display = 'none';
+	sendGodotMenuKey();
+};
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice = document.getElementById('status-notice');
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			gameLoaded = true;
+			statusOverlay.remove();
+			initializing = false;
+			window.setGodotScreen(currentScreen);
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('An unknown error occurred.');
+		}
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let serviceWorkerRegistrationPromise;
+			try {
+				serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			// There's a chance that installing the service worker would fix the issue
+			Promise.race([
+				serviceWorkerRegistrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				// For some reason, `getRegistration()` can stall
+				new Promise((resolve) => {
+					setTimeout(() => resolve(), 2000);
+				}),
+			]).then(() => {
+				// Reload if there was no error.
+				window.location.reload();
+			}).catch((err) => {
+				console.error('Error while registering service worker:', err);
+			});
+		} else {
+			// Display the message as usual
+			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+			displayFailureNotice(missingMsg + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					statusProgress.value = current;
+					statusProgress.max = total;
+				} else {
+					statusProgress.removeAttribute('value');
+					statusProgress.removeAttribute('max');
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+}());
+		</script>
+	</body>
+</html>
