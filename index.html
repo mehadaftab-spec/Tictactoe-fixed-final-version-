@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>final game fix</title>
+		<style>
+html, body, #canvas {
+	margin: 0; padding: 0; border: 0;
+}
+body {
+	color: white;
+	background-color: black;
+	overflow: hidden;
+	touch-action: none;
+}
+#canvas { display: block; }
+#canvas:focus { outline: none; }
+
+#status, #status-splash, #status-progress {
+	position: absolute; left: 0; right: 0;
+}
+#status, #status-splash { top: 0; bottom: 0; }
+#status {
+	background-color: #1c1109;
+	display: flex; flex-direction: column;
+	justify-content: center; align-items: center;
+	visibility: hidden;
+}
+#status-splash { max-height: 100%; max-width: 100%; margin: auto; }
+#status-splash.show-image--false { display: none; }
+#status-splash.fullsize--true { height: 100%; width: 100%; object-fit: contain; }
+#status-splash.use-filter--false { image-rendering: pixelated; }
+#status-progress, #status-notice { display: none; }
+#status-progress { bottom: 10%; width: 50%; margin: 0 auto; }
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden; padding: 1rem;
+	text-align: center; z-index: 1;
+}
+
+/* ===== HAND-DRAWN TAP CIRCLE ===== */
+#tap-circle {
+	position: fixed;
+	top: 6px;
+	left: 6px;
+	z-index: 1002;
+	width: 160px;
+	height: 160px;
+	cursor: pointer;
+	display: none;
+	opacity: 1;
+	transition: opacity 0.8s ease;
+	-webkit-tap-highlight-color: transparent;
+	user-select: none;
+}
+#tap-circle.faded {
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* ===== CONTROLS PANEL (top-right) ===== */
+#controls {
+	position: fixed;
+	top: 10px;
+	right: 10px;
+	z-index: 1001;
+	display: none;
+	flex-direction: column;
+	gap: 8px;
+	align-items: stretch;
+}
+.toggle-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	background: linear-gradient(145deg, #2a1a0e, #1a0f06);
+	border: 2px solid #d4a017;
+	border-radius: 10px;
+	padding: 8px 14px;
+	box-shadow: 0 4px 14px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.toggle-label {
+	color: #f0d080;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	font-size: 13px;
+	font-weight: bold;
+	letter-spacing: 0.5px;
+	white-space: nowrap;
+	pointer-events: none;
+}
+.toggle-switch {
+	position: relative;
+	width: 48px; height: 26px;
+	flex-shrink: 0;
+	cursor: pointer;
+}
+.toggle-switch input {
+	opacity: 0; width: 0; height: 0;
+	position: absolute;
+}
+.toggle-slider {
+	position: absolute;
+	inset: 0;
+	background: #555;
+	border-radius: 26px;
+	transition: background 0.3s ease;
+	box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+.toggle-slider::before {
+	content: '';
+	position: absolute;
+	width: 20px; height: 20px;
+	left: 3px; top: 3px;
+	background: #bbb;
+	border-radius: 50%;
+	transition: transform 0.3s ease, background 0.3s ease;
+	box-shadow: 0 2px 5px rgba(0,0,0,0.45);
+}
+.toggle-switch input:checked + .toggle-slider { background: #3ab54a; }
+.toggle-switch input:checked + .toggle-slider::before {
+	transform: translateX(22px);
+	background: #fff;
+}
+
+/* ===== VIDEO OVERLAY ===== */
+#video-overlay {
+	position: fixed;
+	top: 0; left: 0;
+	width: 100%; height: 100%;
+	z-index: 999;
+	display: none;
+	justify-content: center;
+	align-items: center;
+	background-color: rgba(0,0,0,0.9);
+	pointer-events: none;
+}
+#bonus-video {
+	max-width: 88%;
+	max-height: 85vh;
+	border: 3px solid #d4a017;
+	border-radius: 12px;
+	box-shadow: 0 0 40px rgba(212,160,23,0.25);
+	background-color: #000;
+	pointer-events: none;
+}
+
+@media (max-width: 600px) {
+	#tap-circle { width: 130px; height: 130px; }
+	.toggle-row { padding: 6px 10px; gap: 8px; }
+	.toggle-label { font-size: 11px; }
+	.toggle-switch { width: 42px; height: 22px; }
+	.toggle-slider::before { width: 16px; height: 16px; }
+	.toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+	#bonus-video { max-width: 95%; max-height: 78vh; }
+}
+		</style>
+		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
+		<link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+	</head>
+	<body>
+		<canvas id="canvas">Your browser does not support the canvas tag.</canvas>
+		<noscript>Your browser does not support JavaScript.</noscript>
+
+		<div id="status">
+			<img id="status-splash" class="show-image--false fullsize--true use-filter--true" src="index.png" alt="">
+			<progress id="status-progress"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		<!--
+			HAND-DRAWN TAP CIRCLE
+			Nothing inside. Text + arrow wraps all around the outside.
+			Sketch/wobbly filter applied so it looks hand-drawn.
+		-->
+		<div id="tap-circle" onclick="handleFirstTap()">
+			<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+				<defs>
+					<!-- Hand-drawn / sketchy filter -->
+					<filter id="sketchy" x="-10%" y="-10%" width="120%" height="120%">
+						<feTurbulence type="fractalNoise" baseFrequency="0.055" numOctaves="4"
+							seed="2" result="noise"/>
+						<feDisplacementMap in="SourceGraphic" in2="noise"
+							scale="3.5" xChannelSelector="R" yChannelSelector="G"/>
+					</filter>
+
+					<!-- Path for text to follow — full circle going clockwise from left -->
+					<!-- Circle center 80,80, radius 70 -->
+					<!-- Start at leftmost point, go clockwise (top half first) -->
+					<path id="ringText"
+						d="M 10,80
+						   A 70,70 0 1,1 10,80.001"
+					/>
+				</defs>
+
+				<!-- Outer rough circle (hand-drawn look) -->
+				<circle cx="80" cy="80" r="70"
+					fill="rgba(30,16,6,0.82)"
+					stroke="#d4a017"
+					stroke-width="3.5"
+					stroke-linejoin="round"
+					filter="url(#sketchy)"/>
+
+				<!-- Second inner ring — gives double-line sketch feel -->
+				<circle cx="80" cy="80" r="63"
+					fill="none"
+					stroke="#b8956a"
+					stroke-width="1.2"
+					stroke-dasharray="4 3"
+					filter="url(#sketchy)"
+					opacity="0.55"/>
+
+				<!-- Pulsing glow (no filter so it stays clean) -->
+				<circle cx="80" cy="80" r="74"
+					fill="none" stroke="#d4a017" stroke-width="1">
+					<animate attributeName="opacity" values="0.5;0.05;0.5" dur="2s" repeatCount="indefinite"/>
+					<animate attributeName="r" values="70;77;70" dur="2s" repeatCount="indefinite"/>
+				</circle>
+
+				<!--
+					Text around the circle — starts from bottom-left going clockwise:
+					"TAP HERE FOR MUSIC ➜ TAP HERE FOR MUSIC ➜"
+					Using startOffset to position it so text fills the ring.
+					Arrow (➜) separates the repeating phrase.
+				-->
+				<text
+					font-family="Arial Black, Arial, sans-serif"
+					font-size="10.5"
+					font-weight="900"
+					fill="#f0d080"
+					letter-spacing="2">
+					<textPath href="#ringText" startOffset="0%">
+						&#x2022; TAP HERE FOR MUSIC &#x279C; TAP HERE FOR MUSIC &#x279C;
+					</textPath>
+				</text>
+
+				<!--
+					Arrow pointing FROM the text INTO the circle center
+					Positioned at roughly 10 o'clock position, pointing inward
+				-->
+				<g filter="url(#sketchy)">
+					<line x1="38" y1="38" x2="58" y2="58"
+						stroke="#d4a017" stroke-width="2.5"
+						stroke-linecap="round"/>
+					<polygon points="58,58 46,54 54,46"
+						fill="#d4a017"/>
+				</g>
+
+				<!-- Hand-drawn style finger/tap indicator in center (very minimal) -->
+				<text x="80" y="88"
+					text-anchor="middle"
+					font-size="28"
+					fill="#d4a017"
+					opacity="0.7">&#9757;</text>
+			</svg>
+		</div>
+
+		<!-- CONTROLS: Music + SFX toggles (top-right) -->
+		<div id="controls">
+			<div class="toggle-row">
+				<span class="toggle-label">&#127925; MUSIC</span>
+				<label class="toggle-switch">
+					<input type="checkbox" id="music-toggle" checked onchange="onMusicToggle()">
+					<span class="toggle-slider"></span>
+				</label>
+			</div>
+			<div class="toggle-row">
+				<span class="toggle-label">&#128276; SFX</span>
+				<label class="toggle-switch">
+					<input type="checkbox" id="sfx-toggle" checked onchange="onSFXToggle()">
+					<span class="toggle-slider"></span>
+				</label>
+			</div>
+		</div>
+
+		<!-- BONUS VIDEO OVERLAY — no title, just the video -->
+		<div id="video-overlay">
+			<video id="bonus-video" src="bonus-video.mp4" loop playsinline preload="auto"></video>
+		</div>
+
+		<script src="index.js"></script>
+		<script>
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":2014860,"index.wasm":37695054},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_THREADS_ENABLED = false;
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay  = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice   = document.getElementById('status-notice');
+
+	let initializing = true;
+	let statusMode   = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) return;
+		if (mode === 'hidden') {
+			statusOverlay.remove();
+			initializing = false;
+			// Show UI after game has loaded
+			document.getElementById('tap-circle').style.display = 'block';
+			document.getElementById('controls').style.display   = 'flex';
+			return;
+		}
+		statusOverlay.style.visibility  = 'visible';
+		statusProgress.style.display    = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display      = mode === 'notice'   ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) statusNotice.removeChild(statusNotice.lastChild);
+		text.split('\n').forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		setStatusNotice(err instanceof Error ? err.message : (typeof err === 'string' ? err : 'An unknown error occurred.'));
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	const missing = Engine.getMissingFeatures({ threads: GODOT_THREADS_ENABLED });
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let swPromise;
+			try { swPromise = navigator.serviceWorker.getRegistration(); }
+			catch (err) { swPromise = Promise.reject(new Error('Service worker registration failed.')); }
+			Promise.race([
+				swPromise.then((reg) => {
+					if (reg != null) return Promise.reject(new Error('Service worker already exists.'));
+					return reg;
+				}).then(() => engine.installServiceWorker()),
+				new Promise((resolve) => setTimeout(resolve, 2000)),
+			]).then(() => { window.location.reload(); })
+			  .catch((err) => { console.error('SW error:', err); });
+		} else {
+			displayFailureNotice('Error\nThe following features required to run Godot projects on the Web are missing:\n' + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					statusProgress.value = current;
+					statusProgress.max   = total;
+				} else {
+					statusProgress.removeAttribute('value');
+					statusProgress.removeAttribute('max');
+				}
+			},
+		}).then(() => { setStatusMode('hidden'); }, displayFailureNotice);
+	}
+}());
+
+/* ============================================================
+   AUDIO & TOGGLE LOGIC
+   ============================================================
+   Godot registers:  window.toggleGodotMusic  (in main.gd _ready)
+                     window.toggleGodotSFX    (add this to main.gd too)
+   We call them on toggle. If Godot isn't ready yet we queue and retry.
+   ============================================================ */
+
+let musicOn      = true;
+let sfxOn        = true;
+let audioUnlocked = false;
+
+// Queue of pending calls to Godot, retried every 300ms until Godot is ready
+const _pendingCalls = [];
+function _tryFlush() {
+	while (_pendingCalls.length > 0) {
+		const fn = _pendingCalls[0];
+		if (typeof fn === 'function') {
+			fn();
+			_pendingCalls.shift();
+		} else {
+			break;
+		}
+	}
+}
+setInterval(function() {
+	if (_pendingCalls.length > 0) _tryFlush();
+}, 300);
+
+function _unlockAudio() {
+	if (!audioUnlocked) {
+		audioUnlocked = true;
+		// Trigger Godot's audio unlock — required on web before any audio plays
+		if (typeof window.unlockGodotAudio === 'function') {
+			window.unlockGodotAudio();
+		}
+	}
+}
+
+function _fadeCircle() {
+	const c = document.getElementById('tap-circle');
+	if (c && !c.classList.contains('faded')) {
+		c.classList.add('faded');
+		setTimeout(() => { c.style.display = 'none'; }, 900);
+	}
+}
+
+// User taps the big hand-drawn circle
+function handleFirstTap() {
+	_unlockAudio();
+	_fadeCircle();
+	// Make sure music starts if it was supposed to be on
+	if (musicOn) {
+		_pendingCalls.push(function() {
+			// music should already be playing in Godot; just ensure unlock happened
+			if (typeof window.unlockGodotAudio === 'function') window.unlockGodotAudio();
+		});
+		_tryFlush();
+	}
+}
+
+// Music checkbox changed
+function onMusicToggle() {
+	_unlockAudio();
+	_fadeCircle();
+	musicOn = document.getElementById('music-toggle').checked;
+
+	if (typeof window.toggleGodotMusic === 'function') {
+		window.toggleGodotMusic();
+	} else {
+		// Godot not ready yet — queue the call
+		console.warn('[Music] Godot bridge not ready, queuing...');
+		_pendingCalls.push(function() {
+			if (typeof window.toggleGodotMusic === 'function') window.toggleGodotMusic();
+		});
+	}
+}
+
+// SFX checkbox changed
+function onSFXToggle() {
+	_unlockAudio();
+	_fadeCircle();
+	sfxOn = document.getElementById('sfx-toggle').checked;
+
+	if (typeof window.toggleGodotSFX === 'function') {
+		window.toggleGodotSFX();
+	} else {
+		console.warn('[SFX] Godot bridge not ready, queuing...');
+		_pendingCalls.push(function() {
+			if (typeof window.toggleGodotSFX === 'function') window.toggleGodotSFX();
+		});
+	}
+}
+
+/* ============================================================
+   BONUS VIDEO
+   ============================================================ */
+window.playBonusVideo = function () {
+	const overlay = document.getElementById('video-overlay');
+	const video   = document.getElementById('bonus-video');
+	overlay.style.display = 'flex';
+	video.currentTime = 0;
+	const p = video.play();
+	if (p) p.catch((e) => console.log('Autoplay blocked:', e));
+};
+
+window.stopBonusVideo = function () {
+	const overlay = document.getElementById('video-overlay');
+	const video   = document.getElementById('bonus-video');
+	video.pause();
+	video.currentTime = 0;
+	overlay.style.display = 'none';
+};
+		</script>
+	</body>
+</html>
